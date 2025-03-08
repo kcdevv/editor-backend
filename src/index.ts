@@ -1,4 +1,12 @@
+import express from "express";
+import { createServer } from "http";
 import WebSocket, { WebSocketServer } from "ws";
+
+const app = express();
+const server = createServer(app);
+const PORT = process.env.PORT || 8080;
+
+const wss = new WebSocketServer({ server });
 
 interface Room {
   slug: string;
@@ -10,34 +18,36 @@ interface Room {
 
 const rooms: Room[] = [];
 
-const wss = new WebSocketServer({ port: 8080 });
-
 wss.on("connection", (ws) => {
+  console.log("Client connected");
+
   ws.on("message", (message: string) => {
     const messageData = JSON.parse(message);
 
     if (messageData.type === "join") {
       let room = rooms.find((room) => room.slug === messageData.room);
-      if (room === undefined) {
-        rooms.push({
+      if (!room) {
+        room = {
           slug: messageData.room,
           code: "",
           output: "",
           sockets: [ws],
           language: "javascript",
-        });
-        room = rooms.find((room) => room.slug === messageData.room);
+        };
+        rooms.push(room);
       } else {
         room.sockets.push(ws);
       }
-      const toSend = JSON.stringify({
-        type: "joined",
-        room: messageData.room,
-        code: room!.code,
-        output: room!.output,
-        language: room!.language,
-      });
-      ws.send(toSend);
+
+      ws.send(
+        JSON.stringify({
+          type: "joined",
+          room: messageData.room,
+          code: room.code,
+          output: room.output,
+          language: room.language,
+        })
+      );
     }
 
     if (messageData.type === "code") {
@@ -63,9 +73,12 @@ wss.on("connection", (ws) => {
   });
 
   ws.on("close", () => {
-    const room = rooms.find((room) => room.sockets.includes(ws));
-    if (room) {
+    rooms.forEach((room) => {
       room.sockets = room.sockets.filter((socket) => socket !== ws);
-    }
+    });
   });
+});
+
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
