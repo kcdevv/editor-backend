@@ -1,10 +1,19 @@
 import express from "express";
 import { createServer } from "http";
 import WebSocket, { WebSocketServer } from "ws";
+import cors from "cors";
 
 const app = express();
 const server = createServer(app);
 const PORT = process.env.PORT || 8080;
+
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type"],
+  })
+);
 
 const wss = new WebSocketServer({ server });
 
@@ -18,7 +27,7 @@ interface Room {
 
 const rooms: Room[] = [];
 
-wss.on("connection", (ws) => {
+wss.on("connection", (ws, req) => {
   console.log("Client connected");
 
   ws.on("message", (data) => {
@@ -89,6 +98,6 @@ wss.on("connection", (ws) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+server.listen(PORT, "0.0.0.0" as any,() => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });

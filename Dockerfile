@@ -1,15 +1,24 @@
+#
+ROM node:alpine AS builder
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+
+RUN npm install --omit=dev
+
+COPY . .
+
+RUN npm run build
+
 FROM node:alpine
 
 WORKDIR /app
 
-COPY package.json .
+COPY --from=builder /app /app
 
-RUN npm install
-
-COPY . .
+ENV NODE_ENV=production
 
 EXPOSE 8080
-
-RUN npm run build
 
 CMD ["npm", "start"]
