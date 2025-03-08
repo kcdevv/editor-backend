@@ -6,7 +6,7 @@ const app = express();
 const server = createServer(app);
 const PORT = process.env.PORT || 8080;
 
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ server, host: "0.0.0.0" });
 
 interface Room {
   slug: string;
