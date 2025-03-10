@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 8080;
 
 app.use(
   cors({
-    origin: "*",
+    origin: ["https://editor-frontend-nine.vercel.app"],
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type"],
   })
@@ -98,6 +98,6 @@ wss.on("connection", (ws, req) => {
   });
 });
 
-server.listen(PORT, "0.0.0.0" as any,() => {
+server.listen(PORT, "0.0.0.0" as any, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
