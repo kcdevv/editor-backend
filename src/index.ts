@@ -1,21 +1,8 @@
-import express from "express";
-import { createServer } from "http";
 import WebSocket, { WebSocketServer } from "ws";
-import cors from "cors";
 
-const app = express();
-const server = createServer(app);
 const PORT = process.env.PORT || 8080;
 
-app.use(
-  cors({
-    origin: ["https://editor-frontend-nine.vercel.app"],
-    methods: ["GET", "POST"],
-    allowedHeaders: ["Content-Type"],
-  })
-);
-
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ port: PORT as number });
 
 interface Room {
   slug: string;
@@ -96,8 +83,4 @@ wss.on("connection", (ws, req) => {
     });
     console.log("Client disconnected");
   });
-});
-
-server.listen(PORT, "0.0.0.0" as any, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
 });
