@@ -1,46 +1,49 @@
 import WebSocket, { WebSocketServer } from "ws";
+import { PrismaClient } from "@prisma/client";
 
+const prisma = new PrismaClient();
 const PORT = process.env.PORT || 8080;
-
 const wss = new WebSocketServer({ port: PORT as number });
 
-interface Room {
+interface RoomData {
   slug: string;
   code: string;
   output: string;
-  sockets: WebSocket[];
   language: string;
 }
 
-const rooms: Room[] = [];
+// Store WebSocket connections in memory per room for broadcasting
+const activeConnections: { [key: string]: WebSocket[] } = {};
 
-wss.on("connection", (ws, req) => {
+wss.on("connection", (ws) => {
   console.log("Client connected");
 
-  ws.on("message", (data) => {
+  ws.on("message", async (data) => {
     try {
       const message = data.toString();
       const messageData = JSON.parse(message);
 
       if (messageData.type === "join") {
-        let room = rooms.find((room) => room.slug === messageData.room);
+        let room = await prisma.room.findUnique({
+          where: { slug: messageData.room },
+        });
+
+        // If room doesn't exist, create it in the database
         if (!room) {
-          room = {
-            slug: messageData.room,
-            code: "",
-            output: "",
-            sockets: [ws],
-            language: "javascript",
-          };
-          rooms.push(room);
-        } else {
-          room.sockets.push(ws);
+          room = await prisma.room.create({
+            data: { slug: messageData.room },
+          });
         }
+
+        if (!activeConnections[messageData.room]) {
+          activeConnections[messageData.room] = [];
+        }
+        activeConnections[messageData.room].push(ws);
 
         ws.send(
           JSON.stringify({
             type: "joined",
-            room: messageData.room,
+            room: room.slug,
             code: room.code,
             output: room.output,
             language: room.language,
@@ -49,13 +52,21 @@ wss.on("connection", (ws, req) => {
       }
 
       if (messageData.type === "code") {
-        const room = rooms.find((room) => room.slug === messageData.room);
-        if (room) {
-          room.code = messageData.code;
-          room.output = messageData.output;
-          room.language = messageData.language;
+        const roomSlug = messageData.room;
 
-          room.sockets.forEach((socket) => {
+        // Update room code, output, and language in Prisma
+        await prisma.room.update({
+          where: { slug: roomSlug },
+          data: {
+            code: messageData.code,
+            output: messageData.output,
+            language: messageData.language,
+          },
+        });
+
+        // Broadcast the updated code to all other clients in the same room
+        if (activeConnections[roomSlug]) {
+          activeConnections[roomSlug].forEach((socket) => {
             if (socket !== ws) {
               socket.send(
                 JSON.stringify({
@@ -75,12 +86,17 @@ wss.on("connection", (ws, req) => {
   });
 
   ws.on("close", () => {
-    rooms.forEach((room, index) => {
-      room.sockets = room.sockets.filter((socket) => socket !== ws);
-      if (room.sockets.length === 0) {
-        rooms.splice(index, 1);
+    // Clean up connections when a client disconnects
+    for (const roomSlug in activeConnections) {
+      activeConnections[roomSlug] = activeConnections[roomSlug].filter(
+        (socket) => socket !== ws
+      );
+
+      // Remove the room from active connections if it's empty
+      if (activeConnections[roomSlug].length === 0) {
+        delete activeConnections[roomSlug];
       }
-    });
+    }
     console.log("Client disconnected");
   });
 });
